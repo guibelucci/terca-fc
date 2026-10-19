@@ -46,6 +46,42 @@ function eligibleKeepers(){let r=current();return db.players.filter(p=>p.goalkee
 function extremosNoMesmoTime(red,blue,e){return [e.melhores,e.piores].some(g=>g.length===3&&(g.every(id=>red.includes(id))||g.every(id=>blue.includes(id))))}
 function shuffle(ids,e=extremosScorePresentes(ids)){let best=null;for(let t=0;t<3000;t++){let order=[...ids];for(let i=order.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}let a=order.slice(0,Math.ceil(ids.length/2)),b=order.slice(Math.ceil(ids.length/2));if(extremosNoMesmoTime(a,b,e))continue;let c=cost(a,b);if(!best||c<best.c)best={red:a,blue:b,c}}return best}
 function distribuirReservasEquilibradas(drawn,reserves,e){let bench={red:[],blue:[]};let ordem=[...reserves].sort((a,b)=>Number(!(e.melhores.includes(a)||e.piores.includes(a)))-Number(!(e.melhores.includes(b)||e.piores.includes(b))));for(const id of ordem){let opcoes=['red','blue'].filter(side=>!extremosNoMesmoTime([...drawn.red,...bench.red,...(side==='red'?[id]:[])],[...drawn.blue,...bench.blue,...(side==='blue'?[id]:[])],e));if(!opcoes.length)return null;opcoes.sort((a,b)=>{let na=drawn[a].length+bench[a].length,nb=drawn[b].length+bench[b].length;if(na!==nb)return na-nb;let custo=side=>cost([...drawn.red,...bench.red,...(side==='red'?[id]:[])],[...drawn.blue,...bench.blue,...(side==='blue'?[id]:[])]);return custo(a)-custo(b)});bench[opcoes[0]].push(id)}return bench}
+const INICIO_RODIZIO_TIMES='2026-10-20';
+async function buscarHistoricoRodizio(dataAtual){
+ const {data,error}=await supa.from('rodadas').select('data_rodada,dados').gte('data_rodada',INICIO_RODIZIO_TIMES).lt('data_rodada',dataAtual).order('data_rodada',{ascending:false}).limit(12);
+ if(error)throw Error('Erro ao consultar o histórico dos times: '+error.message);
+ return (data||[]).filter(r=>r.dados?.finalizedAt&&(r.dados.finalTeams||r.dados.teams)).slice(0,4).map(r=>r.dados.finalTeams||r.dados.teams);
+}
+function grupoCompleto(t,side){return [...(t[side]||[]),...(t.bench?.[side]||[])];}
+function penalidadeRodizio(red,blue,historico){
+ let pontos=0;
+ historico.forEach((t,i)=>{
+  const peso=4-i,ant=[grupoCompleto(t,'red'),grupoCompleto(t,'blue')];
+  for(const grupo of [red,blue])for(let j=0;j<grupo.length;j++)for(let k=j+1;k<grupo.length;k++){
+   if(ant.some(a=>a.includes(grupo[j])&&a.includes(grupo[k])))pontos+=peso;
+  }
+  const ids=[...red,...blue].filter(id=>ant[0].includes(id)||ant[1].includes(id));
+  if(ids.length>=10){
+   const igual=ids.every(id=>red.includes(id)===ant[0].includes(id));
+   const invertido=ids.every(id=>red.includes(id)===ant[1].includes(id));
+   if(igual||invertido)pontos+=1000*peso;
+  }
+ });
+ return pontos;
+}
+function shuffleComRodizio(starters,reserves,extremos,historico){
+ let best=null;
+ for(let t=0;t<2400;t++){
+  const order=[...starters];for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+  const drawn={red:order.slice(0,7),blue:order.slice(7)};
+  if(extremosNoMesmoTime(drawn.red,drawn.blue,extremos))continue;
+  const bench=distribuirReservasEquilibradas(drawn,reserves,extremos);if(!bench)continue;
+  const red=[...drawn.red,...bench.red],blue=[...drawn.blue,...bench.blue];
+  const nota=cost(red,blue)+2*penalidadeRodizio(red,blue,historico);
+  if(!best||nota<best.nota)best={drawn,bench,nota};
+ }
+ return best;
+}
 function suggest(id){let t=current().teams;if(!t)return null;let red=cost([...t.red,id],t.blue),blue=cost(t.red,[...t.blue,id]);return {side:red<=blue?'red':'blue',red,blue}}function baseStats(id){const base=HISTORICO_EXCEL[HISTORICO_EXCEL.length-1]?.players[String(id)]||{};return {points:0,bonus:0,streak:0,goals:0,attendance:0,wins:0,...base}}function points(p){let v=baseStats(p.id).points;completedRounds().forEach(([,r])=>{let a=(r.finalAttendance||r.attendance||{})[p.id];if(a)v=Math.max(0,v+(a.status==='Presente'?1:a.status==='Atrasado'?-1:-2))});return Math.max(0,v)}function historicalBonus(id){
  const history=HISTORICO_EXCEL.map(h=>h.players[String(id)]).filter(Boolean);
  const last=history.at(-1);if(!last)return null;
@@ -379,7 +415,7 @@ async function salvarMontagemManual(){
  }catch(e){alert('Montagem NÃO salva: '+(e.message||String(e))+'\nNenhuma montagem foi aplicada localmente.');}
  finally{montagemManualSalvando=false;}
 }
-function teams(){let r=current(),ids=eligible(),t=r.teams;let metrics=t?{red:teamMetrics(t.red),blue:teamMetrics(t.blue)}:null;let assigned=t?[...t.red,...t.blue,...(r.substitutions?.bench?.red||[]),...(r.substitutions?.bench?.blue||[])]:[];let pending=t?ids.filter(id=>!assigned.includes(id)):[];return `${header()}<div class="panel"><div class="row"><h2>Sorteio inteligente</h2>${roundId>HIST_FINAL?'<p class="note">☁️ O sorteio será salvo no Supabase. Visitantes veem a escalação automaticamente em até 10 segundos.</p>':''}<button class="primary" onclick="draw()" ${!isAdmin()||locked()||ids.length<14?'disabled':''}>Sortear times</button> <button onclick="abrirMontagemManual()" ${!isAdmin()||locked()?'disabled':''}>✍️ Montar times manualmente</button></div><p class="note">${eligibleKeepers().length} goleiro(s) presente(s). ${ids.length} jogadores de linha confirmados. Todos os presentes são distribuídos entre Vermelho e Azul desde o sorteio; os 14 primeiros da classificação iniciam como titulares (7 por time). Os demais já ficam como reservas de seu time. Os três maiores e os três menores scores dos presentes não podem ficar todos na mesma equipe. Cada equipe é numerada pela classificação, mas os atrasados ficam sempre no fim da lista do dia, como últimos reservas; o rodízio começa pelo 7º titular e avança sem repetir imediatamente quem acabou de entrar.</p>${!t?'<p>Nenhum sorteio realizado nesta rodada.</p>':`<div class="grid">${['red','blue'].map(side=>`<div class="panel team ${side==='blue'?'blue':''}"><h2>${side==='red'?'🔴 Vermelho':'🔵 Azul'}</h2><p class="muted">${t[side].length+(r.substitutions?.bench?.[side]?.length||0)} atletas de linha · ${t[side].length} em campo · ${(r.substitutions?.bench?.[side]||[]).length} reservas</p>${(t.goalkeepers?.[side]||[]).map(id=>`<p><b>🧤 ${esc(athleteName(id))} (goleiro)</b></p>`).join('')}<h3>Em campo</h3>${byTeamRank(t[side]).map(id=>`<p><b>${byTeamRank([...t[side],...(r.substitutions?.bench?.[side]||[])]).indexOf(id)+1}º</b> ${esc(athleteName(id))} <small>(${(pscore(id).level??4).toFixed(1)}★)</small></p>`).join('')}<h3>Reservas</h3>${byTeamRank(r.substitutions?.bench?.[side]||[]).map(id=>`<p>↪ <b>${byTeamRank([...t[side],...(r.substitutions?.bench?.[side]||[])]).indexOf(id)+1}º</b> ${esc(athleteName(id))}${dailyRankLabel(id)}</p>`).join('')||'<p class="note">Sem reservas.</p>'}</div>`).join('')}</div>`}</div>${painelMontagemManual()}${subsPanel()}${pending.length?`<div class="panel"><h2>Chegadas após o sorteio</h2>${pending.map(id=>{let s=suggest(id),p=pscore(id);return `<div class="row" style="margin:10px 0"><span>${esc(p.name)} — recomendado: <b>${s.side==='red'?'Vermelho':'Azul'}</b></span><button class="primary" onclick="addLate(${id},'${s.side}')" ${!isAdmin()?'disabled':''}>Confirmar entrada</button></div>`}).join('')}</div>`:''}<div class="panel"><h2>Placar da rodada</h2><p class="note">O placar é atualizado na aba 🔴 Ao vivo.</p><button class="primary" onclick="go('ao-vivo')">Abrir escalação ao vivo</button></div>`}
+function teams(){let r=current(),ids=eligible(),t=r.teams;let metrics=t?{red:teamMetrics(t.red),blue:teamMetrics(t.blue)}:null;let assigned=t?[...t.red,...t.blue,...(r.substitutions?.bench?.red||[]),...(r.substitutions?.bench?.blue||[])]:[];let pending=t?ids.filter(id=>!assigned.includes(id)):[];return `${header()}<div class="panel"><div class="row"><h2>Sorteio inteligente</h2>${roundId>HIST_FINAL?'<p class="note">☁️ O sorteio será salvo no Supabase. Visitantes veem a escalação automaticamente em até 10 segundos.</p>':''}<button class="primary" onclick="draw()" ${!isAdmin()||locked()||ids.length<14?'disabled':''}>Sortear times</button> <button onclick="abrirMontagemManual()" ${!isAdmin()||locked()?'disabled':''}>✍️ Montar times manualmente</button></div><p class="note">${eligibleKeepers().length} goleiro(s) presente(s). ${ids.length} jogadores de linha confirmados. Todos os presentes são distribuídos entre Vermelho e Azul desde o sorteio; os 14 primeiros da classificação iniciam como titulares (7 por time). Os demais já ficam como reservas de seu time. Os três maiores e os três menores scores dos presentes não podem ficar todos na mesma equipe. A partir de 20/10/2026, o sorteio evita repetir times e duplas das últimas quatro rodadas finalizadas, sem considerar jogos anteriores. Cada equipe é numerada pela classificação, mas os atrasados ficam sempre no fim da lista do dia, como últimos reservas; o rodízio começa pelo 7º titular e avança sem repetir imediatamente quem acabou de entrar.</p>${!t?'<p>Nenhum sorteio realizado nesta rodada.</p>':`<div class="grid">${['red','blue'].map(side=>`<div class="panel team ${side==='blue'?'blue':''}"><h2>${side==='red'?'🔴 Vermelho':'🔵 Azul'}</h2><p class="muted">${t[side].length+(r.substitutions?.bench?.[side]?.length||0)} atletas de linha · ${t[side].length} em campo · ${(r.substitutions?.bench?.[side]||[]).length} reservas</p>${(t.goalkeepers?.[side]||[]).map(id=>`<p><b>🧤 ${esc(athleteName(id))} (goleiro)</b></p>`).join('')}<h3>Em campo</h3>${byTeamRank(t[side]).map(id=>`<p><b>${byTeamRank([...t[side],...(r.substitutions?.bench?.[side]||[])]).indexOf(id)+1}º</b> ${esc(athleteName(id))} <small>(${(pscore(id).level??4).toFixed(1)}★)</small></p>`).join('')}<h3>Reservas</h3>${byTeamRank(r.substitutions?.bench?.[side]||[]).map(id=>`<p>↪ <b>${byTeamRank([...t[side],...(r.substitutions?.bench?.[side]||[])]).indexOf(id)+1}º</b> ${esc(athleteName(id))}${dailyRankLabel(id)}</p>`).join('')||'<p class="note">Sem reservas.</p>'}</div>`).join('')}</div>`}</div>${painelMontagemManual()}${subsPanel()}${pending.length?`<div class="panel"><h2>Chegadas após o sorteio</h2>${pending.map(id=>{let s=suggest(id),p=pscore(id);return `<div class="row" style="margin:10px 0"><span>${esc(p.name)} — recomendado: <b>${s.side==='red'?'Vermelho':'Azul'}</b></span><button class="primary" onclick="addLate(${id},'${s.side}')" ${!isAdmin()?'disabled':''}>Confirmar entrada</button></div>`}).join('')}</div>`:''}<div class="panel"><h2>Placar da rodada</h2><p class="note">O placar é atualizado na aba 🔴 Ao vivo.</p><button class="primary" onclick="go('ao-vivo')">Abrir escalação ao vivo</button></div>`}
 
 // Sorteio remoto: somente rodada de testes; a alteração local acontece APÓS confirmação do banco.
 let sorteioNuvemOcupado=false;
@@ -402,11 +438,11 @@ async function sortearTimesNuvemTeste(){
   const ordered=byTeamRank(ids),onTime=ordered.filter(id=>!isLatePlayer(id));
   const starters=onTime.slice(0,14);
   const extremos=extremosScorePresentes(ordered);
-  const drawn=shuffle(starters,extremos);
-  if(!drawn)throw Error("Não foi possível encontrar um sorteio válido.");
   const reserves=ordered.filter(id=>!starters.includes(id));
-  const bench=distribuirReservasEquilibradas(drawn,reserves,extremos);
-  if(!bench)throw Error('Não foi possível distribuir reservas respeitando os três melhores e três piores.');
+  const historicoRodizio=await buscarHistoricoRodizio(roundId);
+  const resultado=shuffleComRodizio(starters,reserves,extremos,historicoRodizio);
+  if(!resultado)throw Error('Não foi possível encontrar uma divisão válida com as regras de equilíbrio.');
+  const {drawn,bench}=resultado;
   drawn.goalkeepers=keeperDraw(eligibleKeepers());
   drawn.bench=JSON.parse(JSON.stringify(bench));
   const next=structuredClone(row.dados);
