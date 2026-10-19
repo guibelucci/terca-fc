@@ -748,7 +748,8 @@ let estatisticasNuvemCarregadas=false;
 let estatisticasNuvemErro='';
 let estatisticasConsultaEmCurso=false;
 function completedRounds(){
- return Object.entries(nuvemEstatisticas).filter(([date,r])=>date>HIST_FINAL&&r&&r.finalizedAt).sort(([a],[b])=>a.localeCompare(b));
+ const hojeBrasil=new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+ return Object.entries(nuvemEstatisticas).filter(([date,r])=>date>HIST_FINAL&&date<=hojeBrasil&&r&&r.finalizedAt).sort(([a],[b])=>a.localeCompare(b));
 }
 async function atualizarEstatisticasNuvem(){
  if(estatisticasConsultaEmCurso)return;
