@@ -168,7 +168,7 @@ async function startNewRound(){
  }catch(e){alert('Rodada NÃO criada: '+(e.message||String(e)));}
  finally{criandoRodadaNuvem=false;}
 }
-function presence(){let r=current(),arr=db.players.filter(p=>!p.goalkeeper&&!p.excluidoEm),present=arr.filter(p=>(r.finalAttendance||r.attendance||{})[p.id]?.status==='Presente').length,late=arr.filter(p=>r.attendance[p.id]?.status==='Atrasado').length;return `${header()}${roundId>HIST_FINAL?`<div class="panel"><p class="note" id="sincronizacao-presenca-status">${esc(avisoSincronizacaoPresenca||'☁ Sincronização de presença: consulta automática a cada 10 segundos.')}</p><button onclick="sincronizarPresencaTeste()">Atualizar agora</button></div>`:''}${startPanel()}<div class="grid"><div class="stat"><strong class="ok">${present}</strong>Presentes</div><div class="stat"><strong class="warn">${late}</strong>Atrasados</div><div class="stat"><strong>${arr.length-present-late}</strong>Sem confirmação</div></div><div class="panel"><div class="row"><h2>Lista de chegada</h2><input type="search" placeholder="Buscar atleta" oninput="filterNames(this.value)"></div><p class="note">Somente o administrador pode marcar o check. A hora é capturada automaticamente no clique. O administrador pode corrigir a hora pelo botão Alterar hora. Até 19h30: presença; 19h31–19h59: atraso; a partir das 20h: falta.</p><div class="scroll"><table class="table"><thead><tr><th>Check</th><th>Nº</th><th>Atleta</th><th>Hora</th><th>Situação</th><th>Administração</th></tr></thead><tbody>${arr.map((p,i)=>{let a=r.attendance[p.id];return `<tr class="athlete" data-name="${esc(p.name.toLowerCase())}"><td><input class="check" type="checkbox" ${a?(a.status==='Falta'?'disabled':'checked disabled'):isAdmin()&&canPlay(p.id)?'':'disabled'} onchange="checkIn(${p.id})"></td><td><strong>${i+1}</strong></td><td>${esc(p.name)} ${!canPlay(p.id)?'<small class="bad">🔒 Avaliação pendente</small>':''}</td><td>${a?esc(a.time):'—'}</td><td class="${a?(a.status==='Presente'?'ok':a.status==='Atrasado'?'warn':'bad'):''}">${a?esc(a.status):'Pendente'}</td><td>${a&&isAdmin()?`<button onclick="editArrival(${p.id})">✎ Alterar hora</button>`:'—'}</td></tr>`}).join('')}</tbody></table></div></div>${keeperList()}${r.teams?`<div class="panel"><b>Times já sorteados.</b> Atletas que chegarem depois serão encaminhados à tela de times para aprovação de inclusão.</div>`:''}`}
+function presence(){let r=current(),arr=db.players.filter(p=>!p.goalkeeper&&!p.excluidoEm),present=arr.filter(p=>(r.finalAttendance||r.attendance||{})[p.id]?.status==='Presente').length,late=arr.filter(p=>r.attendance[p.id]?.status==='Atrasado').length;return `${header()}${roundId>HIST_FINAL?`<div class="panel"><p class="note" id="sincronizacao-presenca-status">${esc(avisoSincronizacaoPresenca||'☁ Sincronização de presença: consulta automática a cada 10 segundos.')}</p><button onclick="sincronizarPresencaTeste()">Atualizar agora</button></div>`:''}${startPanel()}<div class="grid"><div class="stat"><strong class="ok">${present}</strong>Presentes</div><div class="stat"><strong class="warn">${late}</strong>Atrasados</div><div class="stat"><strong>${arr.length-present-late}</strong>Sem confirmação</div></div><div class="panel"><div class="row"><h2>Lista de chegada</h2><input type="search" placeholder="Buscar atleta" oninput="filterNames(this.value)"></div><p class="note">Somente o administrador pode marcar o check. A hora é capturada automaticamente no clique. O administrador pode corrigir a hora pelo botão Alterar hora. Até 19h30: presença; 19h31–19h59: atraso; a partir das 20h: falta.</p><div class="scroll"><table class="table"><thead><tr><th>Check</th><th>Nº</th><th>Atleta</th><th>Hora</th><th>Situação</th><th>Administração</th></tr></thead><tbody>${arr.map((p,i)=>{let a=r.attendance[p.id];return `<tr class="athlete" data-name="${esc(p.name.toLowerCase())}"><td><input class="check" type="checkbox" ${a?(a.status==='Falta'?'disabled':'checked'):isAdmin()&&canPlay(p.id)?'':'disabled'} ${!isAdmin()||locked()?'disabled':''} onchange="checkIn(${p.id})"></td><td><strong>${i+1}</strong></td><td>${esc(p.name)} ${!canPlay(p.id)?'<small class="bad">🔒 Avaliação pendente</small>':''}</td><td>${a?esc(a.time):'—'}</td><td class="${a?(a.status==='Presente'?'ok':a.status==='Atrasado'?'warn':'bad'):''}">${a?esc(a.status):'Pendente'}</td><td>${a&&isAdmin()?`<button onclick="editArrival(${p.id})">✎ Alterar hora</button>`:'—'}</td></tr>`}).join('')}</tbody></table></div></div>${keeperList()}${r.teams?`<div class="panel"><b>Times já sorteados.</b> Atletas que chegarem depois serão encaminhados à tela de times para aprovação de inclusão.</div>`:''}`}
 async function editArrival(id){
  if(!mustAdmin())return;
  if(roundId<=HIST_FINAL){alert('Histórico importado protegido.');return}
@@ -214,7 +214,7 @@ function mesmoConteudoJSON(a,b){
  const ka=Object.keys(a).sort(),kb=Object.keys(b).sort();
  return ka.length===kb.length&&ka.every((k,i)=>k===kb[i]&&mesmoConteudoJSON(a[k],b[k]));
 }
-function filterNames(q){document.querySelectorAll('.athlete').forEach(x=>x.style.display=x.dataset.name.includes(q.toLowerCase())?'':'none')}async function checkIn(id){if(!mustAdmin())return;if(roundId<=HIST_FINAL){alert('Rodada histórica protegida contra lançamentos duplicados.');show();return}let r=current();if(r.attendance[id])return;if(!canPlay(id)){alert('Presença bloqueada: este atleta ainda não concluiu todas as avaliações obrigatórias.');show();return}let w=when();
+function filterNames(q){document.querySelectorAll('.athlete').forEach(x=>x.style.display=x.dataset.name.includes(q.toLowerCase())?'':'none')}async function checkIn(id){if(!mustAdmin())return;if(roundId<=HIST_FINAL){alert('Rodada histórica protegida contra lançamentos duplicados.');show();return}let r=current();if(r.attendance[id]){desmarcarPresenca(id);return;}if(!canPlay(id)){alert('Presença bloqueada: este atleta ainda não concluiu todas as avaliações obrigatórias.');show();return}let w=when();
  if(roundId>HIST_FINAL){
   if(!supa){alert('Sem conexão com Supabase. Presença não registrada.');show();return;}
   if(window.tercaPresencaEnviando){alert('Aguarde o envio anterior.');return;}
@@ -239,7 +239,27 @@ function filterNames(q){document.querySelectorAll('.athlete').forEach(x=>x.style
   return;
  }
  r.attendance[id]={...w,status:state(w.time)};save();show();if(r.teams&&!r.teams.red.includes(id)&&!r.teams.blue.includes(id)&&r.attendance[id].time<'20:00'){let p=pscore(id),s=suggest(id);if(confirm(`${p.name} chegou às ${w.time}. Recomenda-se o time ${s.side==='red'?'Vermelho':'Azul'}. Abrir escalação?`)){tab='times';show()}}}
-function keeperList(){let r=current(),arr=db.players.filter(p=>p.goalkeeper);return `<div class="panel"><h2>🧤 Goleiros</h2><p class="note">Daniffer e Gabriel são oficiais; Léo é suplente. Não precisam de avaliação. Marque a presença para incluí-los no sorteio.</p><div class="scroll"><table class="table"><thead><tr><th>Check</th><th>Goleiro</th><th>Categoria</th><th>Hora</th><th>Situação</th><th>Administração</th></tr></thead><tbody>${arr.map(p=>{let a=r.attendance[p.id];return `<tr><td><input class="check" type="checkbox" ${a?(a.status==='Falta'?'disabled':'checked disabled'):isAdmin()&&!locked()?'':'disabled'} onchange="checkIn(${p.id})"></td><td>${esc(p.name)}</td><td>${p.keeperRole==='suplente'?'Suplente':'Oficial'}</td><td>${a?esc(a.time):'—'}</td><td>${a?esc(a.status):'Pendente'}</td><td>${a&&isAdmin()&&!locked()?`<button onclick="editArrival(${p.id})">✎ Alterar hora</button>`:'—'}</td></tr>`}).join('')}</tbody></table></div></div>`}function keeperDraw(ids){let order=[...ids];for(let i=order.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}return {red:order.filter((_,i)=>i%2===0),blue:order.filter((_,i)=>i%2===1)}}
+async function desmarcarPresenca(id){
+ if(!mustAdmin()||window.tercaPresencaEnviando)return show();
+ const r=current(),p=db.players.find(x=>x.id===id);
+ if(!r.attendance[id])return show();
+ if(r.teams){alert('A escalação já foi sorteada. Não é possível retirar a presença sem revisar os times.');return show();}
+ if(!confirm('Desmarcar a presença de '+(p?.name||'este atleta')+'?'))return show();
+ if(!supa)return alert('Sem Supabase. Presença não alterada.');
+ window.tercaPresencaEnviando=true;
+ try{
+  const {data:row,error}=await supa.from('rodadas').select('dados,versao').eq('data_rodada',roundId).single();
+  if(error)throw error;
+  if(!row?.dados||row.dados.finalizedAt||!Number.isSafeInteger(Number(row.versao)))throw Error('Rodada indisponível.');
+  if(!mesmoConteudoJSON(r.attendance,row.dados.attendance))throw Error('A lista mudou em outro dispositivo. Atualize a rodada.');
+  const next=structuredClone(row.dados);delete next.attendance[id];
+  const {error:writeError}=await supa.rpc('salvar_rodada_segura',{p_data:roundId,p_dados:next,p_versao_esperada:Number(row.versao)});
+  if(writeError)throw writeError;
+  db.rounds[roundId]=next;save();show();
+ }catch(e){alert('Não foi possível desmarcar: '+(e.message||e));show()}
+ finally{window.tercaPresencaEnviando=false}
+}
+function keeperList(){let r=current(),arr=db.players.filter(p=>p.goalkeeper);return `<div class="panel"><h2>🧤 Goleiros</h2><p class="note">Daniffer e Gabriel são oficiais; Léo é suplente. Não precisam de avaliação. Marque a presença para incluí-los no sorteio.</p><div class="scroll"><table class="table"><thead><tr><th>Check</th><th>Goleiro</th><th>Categoria</th><th>Hora</th><th>Situação</th><th>Administração</th></tr></thead><tbody>${arr.map(p=>{let a=r.attendance[p.id];return `<tr><td><input class="check" type="checkbox" ${a?(a.status==='Falta'?'disabled':'checked'):isAdmin()&&!locked()?'':'disabled'} onchange="checkIn(${p.id})"></td><td>${esc(p.name)}</td><td>${p.keeperRole==='suplente'?'Suplente':'Oficial'}</td><td>${a?esc(a.time):'—'}</td><td>${a?esc(a.status):'Pendente'}</td><td>${a&&isAdmin()&&!locked()?`<button onclick="editArrival(${p.id})">✎ Alterar hora</button>`:'—'}</td></tr>`}).join('')}</tbody></table></div></div>`}function keeperDraw(ids){let order=[...ids];for(let i=order.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}return {red:order.filter((_,i)=>i%2===0),blue:order.filter((_,i)=>i%2===1)}}
 const SUB_MINUTES=[30,45,60,75];
 function subRank(){return new Map(scores().map((p,i)=>[p.id,i]));}
 function isLatePlayer(id){const a=current().attendance[id];return a?.status==='Atrasado'||(a?.time>'19:30'&&a?.time<'20:00');}
@@ -298,12 +318,13 @@ function nextSubPlan(){let r=current(),sub=r.substitutions;if(!r.teams||!sub||su
  return {minute:SUB_MINUTES[sub.next],changes};
 }
 function aplicarTrocaConfirmada(r,plan){
+ const antes={teams:structuredClone(r.teams),substitutions:structuredClone(r.substitutions)};
  for(const side of ['red','blue']){
   const group=plan.changes.filter(c=>c.side===side),field=r.teams[side],bench=r.substitutions.bench[side],queue=r.substitutions.exitQueue[side];
   for(const ch of group){field.splice(field.indexOf(ch.out),1,ch.in);bench.splice(bench.indexOf(ch.in),1,ch.out);}
   r.substitutions.exitQueue[side]=[...queue.filter(id=>field.includes(id)),...byTeamRank(group.map(c=>c.in)).reverse()];
  }
- r.substitutions.done.push({...plan,at:new Date().toISOString(),manual:!!r.substitutions.manual?.[r.substitutions.next]});
+ r.substitutions.done.push({...plan,antes,at:new Date().toISOString(),manual:!!r.substitutions.manual?.[r.substitutions.next]});
  delete r.substitutions.manual?.[r.substitutions.next];r.substitutions.next++;}
 let trocaNuvemOcupada=false;
 async function confirmSub(){
@@ -350,12 +371,38 @@ async function confirmSub(){
  }catch(e){alert('Troca NÃO salva: '+(e.message||String(e))+'\nConfira a conexão e tente novamente.');}
  finally{trocaNuvemOcupada=false;}
 }
+let desfazendoTroca=false;
+async function redefinirUltimaTroca(){
+ if(!mustAdmin()||desfazendoTroca)return;
+ const local=current(),done=local.substitutions?.done||[];
+ if(!done.length)return;
+ const ultima=done[done.length-1];
+ if(!ultima.antes){alert('Esta troca foi registrada em uma versão antiga e não possui dados para reversão segura.');return;}
+ if(!confirm('Redefinir a última troca confirmada? Você poderá escolher novamente quem sai e quem entra.'))return;
+ if(!supa)return alert('Sem conexão com Supabase.');
+ desfazendoTroca=true;
+ try{
+  const {data:row,error}=await supa.from('rodadas').select('dados,versao').eq('data_rodada',roundId).single();
+  if(error)throw error;
+  if(!row?.dados||row.dados.finalizedAt)throw Error('Rodada encerrada.');
+  const remoteDone=row.dados.substitutions?.done||[];
+  if(remoteDone.length!==done.length||!mesmoConteudoJSON(remoteDone,done))throw Error('As trocas foram alteradas em outro dispositivo. Recarregue a rodada.');
+  const next=structuredClone(row.dados);
+  next.teams=structuredClone(ultima.antes.teams);
+  next.substitutions=structuredClone(ultima.antes.substitutions);
+  const {error:writeError}=await supa.rpc('salvar_rodada_segura',{p_data:roundId,p_dados:next,p_versao_esperada:Number(row.versao)});
+  if(writeError)throw writeError;
+  db.rounds[roundId]=next;save();show();
+ }catch(e){alert('Troca NÃO redefinida: '+(e.message||e));show()}
+ finally{desfazendoTroca=false}
+}
 function subsPanel(){let r=current(),sub=r.substitutions;if(!r.teams)return '';if(!sub)initializeSubs(r);sub=r.substitutions;let plan=nextSubPlan();
  const line=ch=>`<div class="row" style="margin:7px 0"><span>${ch.side==='red'?'🔴':'🔵'} <b>↓ ${esc(athleteName(ch.out))}</b> → <b>↑ ${esc(athleteName(ch.in))}</b></span></div>`;
  const editable=!!(isAdmin()&&!locked());
  const select=(ch,kind,idx)=>{let options=kind==='out'?byTeamRank(r.teams[ch.side]):byTeamRank(sub.bench[ch.side]);return `<label>${kind==='out'?'Sai':'Entra'} <select aria-label="${kind==='out'?'Jogador que sai':'Jogador que entra'}" onchange="setManualSub('${ch.side}',${idx},'${kind}',this.value)" ${editable?'':'disabled'}>${options.map(id=>`<option value="${id}" ${id===ch[kind]?'selected':''}>${esc(athleteName(id))}</option>`).join('')}</select></label>`};
  return `<div class="panel"><h2>🔄 Substituições — 4 trocas</h2><p class="note">30′ (1º tempo), 45′ (intervalo), 60′ (15′ do 2º tempo) e 75′ (30′ do 2º tempo). Os goleiros não participam. O administrador pode alterar quem sai ou entra antes de confirmar.</p>
  ${SUB_MINUTES.map((minute,i)=>{let done=sub.done[i];return `<div style="border-bottom:1px solid #bbb5;padding:9px 0"><b>${i+1}ª troca — ${minute}′:</b> ${done?'✅ Realizada':i===sub.next?'⏳ Próxima':'Aguardando'}${done?`<div class="note">Confirmada em ${new Date(done.at).toLocaleString('pt-BR')}${done.manual?' · Ajustada manualmente':''}</div>${done.changes.length?done.changes.map(line).join(''):'<p>Sem substituições.</p>'}`:''}</div>`}).join('')}
+ ${editable&&sub.done.length?'<button onclick="redefinirUltimaTroca()">↶ Redefinir última troca confirmada</button>':''}
  ${plan?`<h3>Próxima troca — ${plan.minute}′</h3>${plan.changes.length?['red','blue'].map(side=>`<div class="panel"><h4>${side==='red'?'🔴 Vermelho':'🔵 Azul'}</h4>${plan.changes.filter(c=>c.side===side).map((ch,i)=>`<div class="row" style="margin:9px 0;flex-wrap:wrap">${select(ch,'out',i)} <span>→</span> ${select(ch,'in',i)}</div>`).join('')||'<p>Sem reservas.</p>'}</div>`).join(''):'<p>Não há suplentes disponíveis.</p>'}<button class="primary" onclick="confirmSub()" ${!editable?'disabled':''}>Confirmar ${sub.next+1}ª troca</button>`:'<p>As quatro trocas foram concluídas.</p>'}
  <p class="note">As trocas confirmadas ficam registradas com os nomes reais. Após cada troca, a fila de saída é atualizada, colocando quem entrou no fim do rodízio.</p>
  <button onclick="copyLineup()">📋 Copiar escalação e substituições</button></div>`;
@@ -407,7 +454,7 @@ async function salvarMontagemManual(){
   if(!mesmoConteudoJSON(local.teams||null,row.dados?.teams||null))throw Error('Escalação alterada em outro dispositivo. Recarregue a rodada.');
   const next=structuredClone(row.dados);
   next.teams={red:campos.red,blue:campos.blue,bench:structuredClone(bench),goalkeepers:keepers};
-  next.goalEvents=[];next.score={red:0,blue:0};initializeSubs(next);
+  next.goalEvents=[];next.score={red:0,blue:0};next.matchClock=null;initializeSubs(next);
   const {error:writeError}=await supa.rpc('salvar_rodada_segura',{p_data:roundId,p_dados:next,p_versao_esperada:Number(row.versao)});
   if(writeError)throw writeError;
   db.rounds[roundId]=next;save();montagemManual=null;montagemManualData=null;show();
@@ -447,6 +494,7 @@ async function sortearTimesNuvemTeste(){
   drawn.bench=JSON.parse(JSON.stringify(bench));
   const next=structuredClone(row.dados);
   next.goalEvents=[];
+  next.matchClock=null;
   next.score={red:0,blue:0};
   next.teams=drawn;
   initializeSubs(next);
@@ -461,6 +509,65 @@ async function sortearTimesNuvemTeste(){
 
 function draw(){if(roundId>HIST_FINAL){sortearTimesNuvemTeste();return}if(!mustAdmin())return;if(roundId<=HIST_FINAL){alert('Escolha uma rodada posterior a 13/10/2026 para novos sorteios.');return}let ids=eligible();if(current().teams&&!confirm('Substituir o sorteio atual? Os gols e as substituições registrados serão apagados.'))return;let ordered=byTeamRank(ids),onTime=ordered.filter(id=>!isLatePlayer(id));let top=onTime.slice(0,14);if(top.length<14){alert('São necessários 14 jogadores de linha que chegaram no horário para iniciar os dois times de 7. Atletas atrasados entram somente como últimos reservas.');return}let drawn=shuffle(top);let reserves=ordered.filter(id=>!top.includes(id));let bench={red:[],blue:[]};for(const id of reserves){let side;let nr=drawn.red.length+bench.red.length,nb=drawn.blue.length+bench.blue.length;if(nr<nb)side='red';else if(nb<nr)side='blue';else side=cost([...drawn.red,...bench.red,id],[...drawn.blue,...bench.blue])<=cost([...drawn.red,...bench.red],[...drawn.blue,...bench.blue,id])?'red':'blue';bench[side].push(id)}drawn.goalkeepers=keeperDraw(eligibleKeepers());drawn.bench=JSON.parse(JSON.stringify(bench));let r=current();r.goalEvents=[];r.score={red:0,blue:0};r.teams=drawn;initializeSubs(r);save();show()}
 function addLate(id,side){if(!mustAdmin())return;if(roundId<=HIST_FINAL)return;let r=current();if(!r.teams||r.teams.red.includes(id)||r.teams.blue.includes(id)||(r.substitutions?.bench?.red||[]).includes(id)||(r.substitutions?.bench?.blue||[]).includes(id))return;if(!confirm(`Confirmar ${pscore(id).name} como reserva do time ${side==='red'?'Vermelho':'Azul'}?`))return;r.substitutions??={bench:{red:[],blue:[]},done:[],next:0};r.substitutions.bench[side].push(id);ensureExitQueue(r);r.teams.bench??={red:[],blue:[]};r.teams.bench[side].push(id);save();show()}
+// Cronômetro autoritativo da rodada: estado salvo no Supabase, visual atualizado localmente.
+function segundosCronometro(clock){
+ if(!clock)return 0;
+ const base=Math.max(0,Number(clock.elapsedMs)||0);
+ const extra=clock.running&&clock.startedAt?Math.max(0,Date.now()-Date.parse(clock.startedAt)):0;
+ return Math.min(2700000,base+extra);
+}
+function tempoGolFormatado(e){
+ if(e.gameHalf&&Number.isFinite(Number(e.gameSeconds))){
+  const sec=Math.max(0,Math.floor(Number(e.gameSeconds)));
+  return `${e.gameHalf}ºT ${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+ }
+ return 'Anterior ao cronômetro';
+}
+let atualizandoCronometro=false;
+async function controlarCronometro(acao){
+ if(!mustAdmin()||atualizandoCronometro)return;
+ if(!supa)return alert('Supabase indisponível.');
+ const local=current();if(!local.teams)return alert('Sorteie os times primeiro.');
+ atualizandoCronometro=true;
+ try{
+  const {data:row,error}=await supa.from('rodadas').select('dados,versao').eq('data_rodada',roundId).single();
+  if(error)throw error;
+  if(!row?.dados||row.dados.finalizedAt)throw Error('Rodada encerrada.');
+  const next=structuredClone(row.dados);
+  const c=next.matchClock||{half:1,elapsedMs:0,running:false,startedAt:null};
+  const ms=segundosCronometro(c);
+  if(acao==='start'){
+   if(c.running)throw Error('O cronômetro já está em andamento.');
+   if(ms>=2700000)throw Error('Tempo encerrado.');
+   c.elapsedMs=ms;c.running=true;c.startedAt=new Date().toISOString();
+  }else if(acao==='pause'){
+   c.elapsedMs=ms;c.running=false;c.startedAt=null;
+  }else if(acao==='next'){
+   if(c.half!==1)throw Error('O segundo tempo já foi iniciado.');
+   if(!confirm('Encerrar o primeiro tempo e preparar o cronômetro do segundo tempo em 00:00?'))return;
+   c.half=2;c.elapsedMs=0;c.running=false;c.startedAt=null;
+  }
+  next.matchClock=c;
+  const {error:writeError}=await supa.rpc('salvar_rodada_segura',{p_data:roundId,p_dados:next,p_versao_esperada:Number(row.versao)});
+  if(writeError)throw writeError;
+  db.rounds[roundId]=next;save();show();
+ }catch(e){alert('Cronômetro não alterado: '+(e.message||e));show()}
+ finally{atualizandoCronometro=false}
+}
+function clockPanel(r){
+ const c=r.matchClock||{half:1,elapsedMs:0,running:false};
+ const sec=Math.floor(segundosCronometro(c)/1000);
+ const display=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+ const editable=isAdmin()&&!locked()&&!r.finalizedAt;
+ const ended=sec>=2700;
+ return `<div class="panel" style="text-align:center"><h2>⏱ Cronômetro — ${c.half||1}º tempo</h2><div id="relogio-jogo" style="font-size:56px;font-weight:800;font-variant-numeric:tabular-nums">${display}</div><p class="note">${ended?'45 minutos atingidos':c.running?'Cronômetro em andamento':'Cronômetro pausado'} · gols registrados pelo tempo de jogo</p><div class="row" style="justify-content:center"><button class="primary" onclick="controlarCronometro('start')" ${!editable||c.running||ended?'disabled':''}>▶ Iniciar</button><button onclick="controlarCronometro('pause')" ${!editable||!c.running?'disabled':''}>⏸ Pausar</button>${c.half===1?`<button onclick="controlarCronometro('next')" ${!editable?'disabled':''}>⏭ Encerrar 1º tempo / Preparar 2º</button>`:''}</div></div>`;
+}
+setInterval(()=>{
+ if(tab!=='ao-vivo')return;
+ const el=document.getElementById('relogio-jogo');if(!el)return;
+ const sec=Math.floor(segundosCronometro(current().matchClock)/1000);
+ el.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+},250);
 function goalEvents(){let r=current();if(!Array.isArray(r.goalEvents))r.goalEvents=[];return r.goalEvents}
 function scoreLive(){let result={red:0,blue:0};goalEvents().forEach(e=>{let team=e.ownGoal?(e.team==='red'?'blue':'red'):e.team;result[team]++});return result}
 // Gols de teste: gravação protegida antes de atualizar a tela local.
@@ -502,7 +609,9 @@ async function alterarGolNuvemTeste(playerId,ownGoal=false,eventId=null){
    if(!next.goalEvents.some(x=>String(x.id)===String(eventId)))throw Error('Gol não encontrado na nuvem.');
    next.goalEvents=next.goalEvents.filter(x=>String(x.id)!==String(eventId));
   }else{
-   next.goalEvents.push({id:Date.now()+'-'+Math.random().toString(36).slice(2),playerId,team,ownGoal,at:new Date().toISOString()});
+   const c=next.matchClock;
+   if(!c||!c.running||segundosCronometro(c)>=2700000)throw Error('Inicie o cronômetro para registrar gols durante o tempo de jogo.');
+   next.goalEvents.push({id:Date.now()+'-'+Math.random().toString(36).slice(2),playerId,team,ownGoal,at:new Date().toISOString(),gameHalf:c.half,gameSeconds:Math.floor(segundosCronometro(c)/1000)});
   }
   const score={red:0,blue:0};
   for(const g of next.goalEvents){
@@ -566,6 +675,7 @@ async function finalizarRodadaNuvemTeste(){
   if(!confirm('FINALIZAR A RODADA '+date+' NA NUVEM?\nPlacar: Vermelho '+score.red+' x '+score.blue+' Azul\nResultado: '+winner+'\n\nA rodada ficará bloqueada para edição.'))return;
   const next=structuredClone(local);
   next.score=score;
+  if(next.matchClock?.running){next.matchClock.elapsedMs=segundosCronometro(next.matchClock);next.matchClock.running=false;next.matchClock.startedAt=null;}
   next.finalizedAt=new Date().toISOString();
   next.finalResult=winner;
   next.finalTeams=structuredClone(next.teams);
@@ -600,7 +710,7 @@ function gameDetails(date){let r=db.rounds[date];let h=HISTORICO_EXCEL.find(x=>x
 function selectPastGame(date){let el=document.getElementById('pastGameDetails');if(el)el.innerHTML=date?gameDetails(date):'<p>Selecione um jogo para consultar a súmula.</p>'}
 function pastGames(){return `<div class="panel"><h2>📚 Histórico de jogos</h2><p class="note">Súmulas finalizadas consultadas diretamente no Supabase. O mesmo histórico aparece em todos os navegadores. A consulta não altera classificação, pontos nem bônus.</p><div id="historico-remoto">Carregando histórico da nuvem...</div></div>`}
 
-function live(){let r=current(),t=r.teams,events=goalEvents(),score=scoreLive();if(!t)return `${header()}<div class="panel"><h2>🔴 Escalação ao vivo</h2><p>Faça o sorteio dos times antes de registrar os gols.</p><button class="primary" onclick="go('times')">Ir para sorteio</button></div>`;let teamHtml=side=>{let ids=[...(t.goalkeepers?.[side]||[]),...byTeamRank([...t[side],...(r.substitutions?.bench?.[side]||[])])],label=side==='red'?'Vermelho':'Azul';return `<div class="panel team ${side==='blue'?'blue':''}"><h2>${side==='red'?'🔴':'🔵'} ${label}</h2><table class="table"><thead><tr><th>Atleta</th><th>Gols</th><th>Marcar</th></tr></thead><tbody>${ids.map(id=>{let p=db.players.find(x=>x.id===id),n=events.filter(e=>e.playerId===id&&!e.ownGoal).length;return `<tr><td>${esc(p?.name||'Atleta '+id)} <small>${p?.goalkeeper?'🧤 Goleiro':t[side].includes(id)?'● Em campo':'↪ Reserva'}</small></td><td><strong>${n}</strong></td><td><button class="primary" ${!isAdmin()||locked()?'disabled':''} onclick="registerGoal(${id})">+ Gol</button></td></tr>`}).join('')}</tbody></table></div>`};let all=[...t.red,...(r.substitutions?.bench?.red||[]),...t.blue,...(r.substitutions?.bench?.blue||[]),...(t.goalkeepers?.red||[]),...(t.goalkeepers?.blue||[])];return `${header()}<div class="panel" style="text-align:center"><h2>${r.finalizedAt?'🔒 Partida finalizada':'🔴 Jogo ao vivo'}</h2><div class="row" style="justify-content:center;gap:24px"><div><b>🔴 Vermelho</b><div style="font-size:52px;font-weight:800">${score.red}</div></div><span style="font-size:30px">×</span><div><b>🔵 Azul</b><div style="font-size:52px;font-weight:800">${score.blue}</div></div></div><p class="note">O placar soma automaticamente gols normais e gols contra. Somente o administrador pode lançar ou corrigir. Os gols são sincronizados com o Supabase.</p></div><div class="grid">${teamHtml('red')}${teamHtml('blue')}</div><div class="panel"><h2>⚠️ Gol contra</h2><p class="note">Selecione o autor do gol contra. O ponto será somado ao time adversário e não contará para a artilharia do jogador.</p><div class="row"><select id="ownGoalPlayer"><option value="">Selecione o atleta</option>${all.map(id=>`<option value="${id}">${esc(db.players.find(p=>p.id===id)?.name||'Atleta '+id)} (${[...t.red,...(r.substitutions?.bench?.red||[]),...(t.goalkeepers?.red||[])].includes(id)?'Vermelho':'Azul'})</option>`).join('')}</select><button class="danger" ${!isAdmin()||locked()?'disabled':''} onclick="let id=Number(document.getElementById('ownGoalPlayer').value);if(id)registerGoal(id,true);else alert('Selecione o atleta.')">Registrar gol contra</button></div></div><div class="panel"><h2>Histórico de gols</h2>${events.length?`<div class="scroll"><table class="table"><thead><tr><th>Horário</th><th>Autor</th><th>Tipo</th><th>Ponto para</th><th></th></tr></thead><tbody>${[...events].reverse().map(e=>{let p=db.players.find(x=>x.id===e.playerId),point=e.ownGoal?(e.team==='red'?'Azul':'Vermelho'):(e.team==='red'?'Vermelho':'Azul');return `<tr><td>${new Date(e.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td><td>${esc(p?.name||'Atleta removido')}</td><td>${e.ownGoal?'Gol contra':'Gol'}</td><td>${point}</td><td><button ${!isAdmin()||locked()?'disabled':''} onclick="undoGoal('${e.id}')">Desfazer</button></td></tr>`}).join('')}</tbody></table></div>`:'<p class="note">Nenhum gol registrado.</p>'}</div>${r.finalizedAt?`<div class="panel"><h2>🔒 Partida encerrada</h2><p>Encerrada em ${new Date(r.finalizedAt).toLocaleString('pt-BR')}. Registros bloqueados.</p></div>`:`<div class="panel"><h2>Encerrar jogo</h2><p class="note">Confirme o placar antes de encerrar. Esta ação bloqueia definitivamente a edição desta rodada.</p><button class="danger" ${!isAdmin()?'disabled':''} onclick="finishMatch()">🔒 Finalizar partida</button></div>`}`}
+function live(){let r=current(),t=r.teams,events=goalEvents(),score=scoreLive();if(!t)return `${header()}<div class="panel"><h2>🔴 Escalação ao vivo</h2><p>Faça o sorteio dos times antes de registrar os gols.</p><button class="primary" onclick="go('times')">Ir para sorteio</button></div>`;let teamHtml=side=>{let ids=[...(t.goalkeepers?.[side]||[]),...byTeamRank([...t[side],...(r.substitutions?.bench?.[side]||[])])],label=side==='red'?'Vermelho':'Azul';return `<div class="panel team ${side==='blue'?'blue':''}"><h2>${side==='red'?'🔴':'🔵'} ${label}</h2><table class="table"><thead><tr><th>Atleta</th><th>Gols</th><th>Marcar</th></tr></thead><tbody>${ids.map(id=>{let p=db.players.find(x=>x.id===id),n=events.filter(e=>e.playerId===id&&!e.ownGoal).length;return `<tr><td>${esc(p?.name||'Atleta '+id)} <small>${p?.goalkeeper?'🧤 Goleiro':t[side].includes(id)?'● Em campo':'↪ Reserva'}</small></td><td><strong>${n}</strong></td><td><button class="primary" ${!isAdmin()||locked()?'disabled':''} onclick="registerGoal(${id})">+ Gol</button></td></tr>`}).join('')}</tbody></table></div>`};let all=[...t.red,...(r.substitutions?.bench?.red||[]),...t.blue,...(r.substitutions?.bench?.blue||[]),...(t.goalkeepers?.red||[]),...(t.goalkeepers?.blue||[])];return `${header()}<div class="panel" style="text-align:center"><h2>${r.finalizedAt?'🔒 Partida finalizada':'🔴 Jogo ao vivo'}</h2><div class="row" style="justify-content:center;gap:24px"><div><b>🔴 Vermelho</b><div style="font-size:52px;font-weight:800">${score.red}</div></div><span style="font-size:30px">×</span><div><b>🔵 Azul</b><div style="font-size:52px;font-weight:800">${score.blue}</div></div></div><p class="note">O placar soma automaticamente gols normais e gols contra. Somente o administrador pode lançar ou corrigir. Os gols são sincronizados com o Supabase.</p></div>${clockPanel(r)}<div class="grid">${teamHtml('red')}${teamHtml('blue')}</div><div class="panel"><h2>⚠️ Gol contra</h2><p class="note">Selecione o autor do gol contra. O ponto será somado ao time adversário e não contará para a artilharia do jogador.</p><div class="row"><select id="ownGoalPlayer"><option value="">Selecione o atleta</option>${all.map(id=>`<option value="${id}">${esc(db.players.find(p=>p.id===id)?.name||'Atleta '+id)} (${[...t.red,...(r.substitutions?.bench?.red||[]),...(t.goalkeepers?.red||[])].includes(id)?'Vermelho':'Azul'})</option>`).join('')}</select><button class="danger" ${!isAdmin()||locked()?'disabled':''} onclick="let id=Number(document.getElementById('ownGoalPlayer').value);if(id)registerGoal(id,true);else alert('Selecione o atleta.')">Registrar gol contra</button></div></div><div class="panel"><h2>Histórico de gols</h2>${events.length?`<div class="scroll"><table class="table"><thead><tr><th>Tempo de jogo</th><th>Autor</th><th>Tipo</th><th>Ponto para</th><th></th></tr></thead><tbody>${[...events].reverse().map(e=>{let p=db.players.find(x=>x.id===e.playerId),point=e.ownGoal?(e.team==='red'?'Azul':'Vermelho'):(e.team==='red'?'Vermelho':'Azul');return `<tr><td>${tempoGolFormatado(e)}</td><td>${esc(p?.name||'Atleta removido')}</td><td>${e.ownGoal?'Gol contra':'Gol'}</td><td>${point}</td><td><button ${!isAdmin()||locked()?'disabled':''} onclick="undoGoal('${e.id}')">Desfazer</button></td></tr>`}).join('')}</tbody></table></div>`:'<p class="note">Nenhum gol registrado.</p>'}</div>${r.finalizedAt?`<div class="panel"><h2>🔒 Partida encerrada</h2><p>Encerrada em ${new Date(r.finalizedAt).toLocaleString('pt-BR')}. Registros bloqueados.</p></div>`:`<div class="panel"><h2>Encerrar jogo</h2><p class="note">Confirme o placar antes de encerrar. Esta ação bloqueia definitivamente a edição desta rodada.</p><button class="danger" ${!isAdmin()?'disabled':''} onclick="finishMatch()">🔒 Finalizar partida</button></div>`}`}
 function ratings(){ensurePins();let id=authenticatedVoter,p=db.players.find(x=>x.id===id);let targets=p?requiredTargets(id):[];let done=targets.filter(t=>db.votes[id]?.[t]&&['Zagueiro','Meia','Atacante'].includes(db.votes[id][t].position)).length;return `<div class="panel"><div class="row"><h2>⭐ Avaliação dos atletas</h2><button onclick="startTutorial()">❓ Como avaliar?</button></div><p class="note">Selecione seu nome, confirme seu código de quatro dígitos e avalie todos os demais jogadores de linha. Ninguém pode avaliar a si mesmo.</p>${!p?`<label>Seu nome <select id="identityName"><option value="">Selecione</option>${db.players.filter(x=>!x.goalkeeper&&!x.excluidoEm).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label><label>Código individual <input id="identityPin" type="password" inputmode="numeric" maxlength="4" placeholder="4 dígitos"></label><button class="primary" onclick="identifyVoter()">Confirmar identidade</button>`:`<div class="row"><b>${esc(p.name)} — ${done}/${targets.length} avaliações</b><button onclick="exitVoter()">Sair</button></div><p class="${evaluationComplete(id)?'ok':'warn'}">${evaluationComplete(id)?'✓ Avaliação concluída — habilitado':'Avaliações pendentes: '+(targets.length-done)}</p><div class="scroll"><table class="table"><thead><tr><th>Atleta</th><th>Técnica</th><th>Mobilidade</th><th>Posição</th><th>Ação</th></tr></thead><tbody>${db.players.filter(x=>targets.includes(x.id)).map(x=>{let v=db.votes[id]?.[x.id]||{};return `<tr><td>${esc(x.name)} ${v.level?'✓':''}</td><td><select id="lv${x.id}"><option value="">—</option>${[1,2,3,4,5,6,7].map(n=>`<option ${v.level===n?'selected':''} value="${n}">${n} ★</option>`).join('')}</select></td><td><select id="sp${x.id}"><option value="">—</option>${['Muito lento','Lento','Médio','Rápido','Muito rápido'].map((label,i)=>`<option value="${i+1}" ${v.speed===i+1?'selected':''}>${label}</option>`).join('')}</select></td><td><select id="po${x.id}"><option value="">—</option>${['Zagueiro','Meia','Atacante'].map(label=>`<option ${v.position===label?'selected':''}>${label}</option>`).join('')}</select></td><td><button id="salvarAtleta${x.id}" onclick="vote(${id},${x.id})">☁ Salvar</button> <small>${v.level?'✓ Salva':'Pendente'}</small></td></tr>`}).join('')}</tbody></table></div><div class="row" style="margin-top:16px"><button class="primary" id="salvarTodasAvaliacoes" onclick="salvarTodasAvaliacoes()">☁ Salvar todas as avaliações</button><span id="statusSalvarAvaliacoes" class="note">Você pode salvar um atleta por vez ou todos de uma vez.</span></div>`}</div>`}
 function capturarRascunhoAvaliacoes(){
  const rascunho={};
