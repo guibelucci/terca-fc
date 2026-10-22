@@ -709,7 +709,8 @@ function undoGoal(eventId){
  r.goalEvents=r.goalEvents.filter(x=>x.id!==eventId);r.score=scoreLive();save();show();
 }
 
-function finishMatch(){if(roundId>HIST_FINAL){finalizarRodadaNuvemTeste();return;}if(!mustMatchOperator())return;let r=current();if(!r.teams){alert('Sorteie os times antes de finalizar.');return}let sc=scoreLive(),winner=sc.red===sc.blue?'Empate':sc.red>sc.blue?'Vermelho':'Azul';if(!confirm(`FINALIZAR A PARTIDA de ${roundId}?\nPlacar: Vermelho ${sc.red} x ${sc.blue} Azul\nResultado: ${winner}\n\nApós confirmar, esta rodada ficará bloqueada para alterações.`))return;r.score={...sc};r.finalizedAt=new Date().toISOString();r.finalResult=winner;r.finalTeams=JSON.parse(JSON.stringify(r.teams));r.finalSubstitutions=JSON.parse(JSON.stringify(r.substitutions||{}));r.finalGoals=JSON.parse(JSON.stringify(r.goalEvents||[]));r.finalAttendance=JSON.parse(JSON.stringify(r.attendance));if(db.activeRound===roundId)db.activeRound=null;save();tab='historico';show()}
+function converterPendentesEmFalta(attendance){const resultado=structuredClone(attendance||{});for(const p of db.players){if(p.ativo===false||p.excluidoEm)continue;const atual=resultado[p.id];if(!atual||atual.status==='Pendente')resultado[p.id]={...(atual||{}),time:atual?.time||'—',status:'Falta'};}return resultado;}
+function finishMatch(){if(roundId>HIST_FINAL){finalizarRodadaNuvemTeste();return;}if(!mustMatchOperator())return;let r=current();if(!r.teams){alert('Sorteie os times antes de finalizar.');return}let sc=scoreLive(),winner=sc.red===sc.blue?'Empate':sc.red>sc.blue?'Vermelho':'Azul';if(!confirm(`FINALIZAR A PARTIDA de ${roundId}?\nPlacar: Vermelho ${sc.red} x ${sc.blue} Azul\nResultado: ${winner}\n\nApós confirmar, esta rodada ficará bloqueada para alterações.`))return;r.score={...sc};r.finalizedAt=new Date().toISOString();r.finalResult=winner;r.finalTeams=JSON.parse(JSON.stringify(r.teams));r.finalSubstitutions=JSON.parse(JSON.stringify(r.substitutions||{}));r.finalGoals=JSON.parse(JSON.stringify(r.goalEvents||[]));r.attendance=converterPendentesEmFalta(r.attendance);r.finalAttendance=JSON.parse(JSON.stringify(r.attendance));if(db.activeRound===roundId)db.activeRound=null;save();tab='historico';show()}
 let encerramentoNuvemEmCurso=false;
 async function finalizarRodadaNuvemTeste(){
  if(encerramentoNuvemEmCurso)return;
@@ -740,7 +741,8 @@ async function finalizarRodadaNuvemTeste(){
   next.finalTeams=structuredClone(next.teams);
   next.finalSubstitutions=structuredClone(next.substitutions||{});
   next.finalGoals=structuredClone(next.goalEvents||[]);
-  next.finalAttendance=structuredClone(next.attendance||{});
+  next.attendance=converterPendentesEmFalta(next.attendance);
+  next.finalAttendance=structuredClone(next.attendance);
   const {data:newVersion,error:writeError}=await salvarRodadaAutorizada({
    p_data:date,p_dados:next,p_versao_esperada:Number(row.versao)
   });
