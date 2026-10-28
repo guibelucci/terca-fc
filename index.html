@@ -400,6 +400,13 @@ function mesmoConteudoJSON(a,b){
  const ka=Object.keys(a).sort(),kb=Object.keys(b).sort();
  return ka.length===kb.length&&ka.every((k,i)=>k===kb[i]&&mesmoConteudoJSON(a[k],b[k]));
 }
+// V2.9: rascunhos de troca e metadados locais não são conflito de partida.
+function estadoConfirmadoTrocas(r){
+ const sub=r?.substitutions||{};
+ return {attendance:r?.attendance||{},teams:r?.teams||null,goalEvents:r?.goalEvents||[],
+  score:r?.score||null,finalizedAt:r?.finalizedAt||null,
+  substitutions:{bench:sub.bench||{},done:sub.done||[],next:sub.next||0,exitQueue:sub.exitQueue||{}}};
+}
 function filterNames(q){document.querySelectorAll('.athlete').forEach(x=>x.style.display=x.dataset.name.includes(q.toLowerCase())?'':'none')}async function checkIn(id){if(!mustMatchOperator())return;if(roundId<=HIST_FINAL){alert('Rodada histórica protegida contra lançamentos duplicados.');show();return}let r=current();if(r.attendance[id]){desmarcarPresenca(id);return;}if(!canPlay(id)){alert('Presença bloqueada: este atleta ainda não concluiu todas as avaliações obrigatórias.');show();return}let w=when();
  if(roundId>HIST_FINAL){
   if(!supa){alert('Sem conexão com Supabase. Presença não registrada.');show();return;}
@@ -533,15 +540,16 @@ async function confirmSub(){
   if(readError)throw readError;
   if(!row?.dados||!Number.isSafeInteger(Number(row.versao)))throw Error('Rodada remota inválida.');
   // Alterações manuais da próxima troca ainda são rascunhos locais. Compare somente o estado confirmado.
-  const localConfirmed=structuredClone(local);
-  if(localConfirmed.substitutions?.manual)localConfirmed.substitutions.manual=row.dados.substitutions?.manual||{};
-  if(!mesmoConteudoJSON(localConfirmed,row.dados)){
+  const localConfirmed=estadoConfirmadoTrocas(local);
+  const remoteConfirmed=estadoConfirmadoTrocas(row.dados);
+  if(!mesmoConteudoJSON(localConfirmed,remoteConfirmed)){
    db.rounds[roundId]=structuredClone(row.dados);save();show();
    alert('A rodada mudou em outro dispositivo. Carregamos a versão atualizada. Nenhuma troca foi confirmada. Confira e tente novamente.');return;
   }
   const next=structuredClone(row.dados);
   // Reaplique as escolhas manuais da troca corrente, que não são publicadas até a confirmação.
   if(local.substitutions?.manual)next.substitutions.manual=structuredClone(local.substitutions.manual);
+  // A verificação de versão no RPC impede sobrescrever outra alteração concorrente.
   aplicarTrocaConfirmada(next,plan);
   const {error:writeError}=await salvarRodadaAutorizada({p_data:roundId,p_dados:next,p_versao_esperada:Number(row.versao)});
   if(writeError){
