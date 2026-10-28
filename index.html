@@ -447,7 +447,7 @@ async function desmarcarPresenca(id){
 }
 function keeperList(){let r=current(),arr=db.players.filter(p=>p.goalkeeper);return `<div class="panel"><h2>🧤 Goleiros</h2><p class="note">Daniffer e Gabriel são oficiais; Léo é suplente. Não precisam de avaliação. Marque a presença para incluí-los no sorteio.</p><div class="scroll"><table class="table"><thead><tr><th>Check</th><th>Goleiro</th><th>Categoria</th><th>Hora</th><th>Situação</th><th>Administração</th></tr></thead><tbody>${arr.map(p=>{let a=r.attendance[p.id];return `<tr><td><input class="check" type="checkbox" ${a?(a.status==='Falta'?'disabled':'checked'):isMatchOperator()&&!locked()?'':'disabled'} onchange="checkIn(${p.id})"></td><td>${esc(p.name)}</td><td>${p.keeperRole==='suplente'?'Suplente':'Oficial'}</td><td>${a?esc(a.time):'—'}</td><td>${a?esc(a.status):'Pendente'}</td><td>${a&&isMatchOperator()&&!locked()?`<button onclick="editArrival(${p.id})">✎ Alterar hora</button>`:'—'}</td></tr>`}).join('')}</tbody></table></div></div>`}function keeperDraw(ids){let order=[...ids];for(let i=order.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}return {red:order.filter((_,i)=>i%2===0),blue:order.filter((_,i)=>i%2===1)}}
 const SUB_MINUTES=[30,45,60,75];
-function subRank(){return classificacaoOficialV28?new Map(classificacaoOficialV28.map((p,i)=>[p.atleta_id_legado,i])):new Map(scores().map((p,i)=>[p.id,i]));}
+function subRank(){return classificacaoOficialV28?.length===29?new Map(classificacaoOficialV28.map(p=>[Number(p.atleta_id_legado),Number(p.posicao)])):new Map(scores().map((p,i)=>[Number(p.id),i+1]));}
 function isLatePlayer(id){const a=current().attendance[id];return a?.status==='Atrasado'||(a?.time>'19:30'&&a?.time<'20:00');}
 function byTeamRank(ids){const rank=subRank();return [...ids].sort((a,b)=>Number(isLatePlayer(a))-Number(isLatePlayer(b))||(rank.get(a)??999)-(rank.get(b)??999));}
 function dailyRankLabel(id){return isLatePlayer(id)?' · Atrasado (último reserva)':'';}
@@ -657,6 +657,7 @@ async function sortearTimesNuvemTeste(){
  if(!supa)return alert('Supabase indisponível. Sorteio não realizado.');
  if(roundId<=HIST_FINAL)return;
  const r=current();
+ try { await carregarClassificacaoOficialV28(); } catch(e) { alert('Não foi possível carregar a classificação oficial. Sorteio cancelado: '+(e.message||e)); return; }
  const ids=eligible();
  const top=byTeamRank(ids).filter(id=>!isLatePlayer(id)).slice(0,14);
  if(top.length<14)return alert('São necessários 14 jogadores de linha presentes e no horário para sortear. Marque mais presenças nesta rodada.');
