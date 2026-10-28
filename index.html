@@ -718,9 +718,61 @@ function tempoGolFormatado(e){
  }
  return 'Anterior ao cronômetro';
 }
+// Avisos automáticos por tempo; o alarme só é silenciado por clique no relógio.
 let atualizandoCronometro=false;
+let alertaRelogio=null, audioRelogio=null, ultimaPausaAutomatica='', pausandoAutomaticamente=false;
+function marcosCronometro(half){return half===2?[900000,1800000,2700000]:[1800000,2700000]}
+function proximoMarco(c){return marcosCronometro(Number(c.half)||1).find(x=>x>=(Number(c.elapsedMs)||0)+100)||2700000}
+function silenciarAlarmeRelogio(){
+ if(alertaRelogio){clearInterval(alertaRelogio.intervalo);alertaRelogio=null;}
+ const el=document.getElementById('relogio-jogo');if(el)el.style.color='';
+}
+function tocarAvisoRelogio(){
+ try{
+  audioRelogio??=new (window.AudioContext||window.webkitAudioContext)();
+  if(audioRelogio.state==='suspended')audioRelogio.resume().catch(()=>{});
+  const agora=audioRelogio.currentTime;
+  for(let i=0;i<3;i++){
+   const osc=audioRelogio.createOscillator(), ganho=audioRelogio.createGain();
+   osc.type='square';osc.frequency.value=i===1?660:880;
+   ganho.gain.setValueAtTime(0.0001,agora+i*.25);
+   ganho.gain.exponentialRampToValueAtTime(.09,agora+i*.25+.015);
+   ganho.gain.exponentialRampToValueAtTime(.0001,agora+i*.25+.19);
+   osc.connect(ganho);ganho.connect(audioRelogio.destination);
+   osc.start(agora+i*.25);osc.stop(agora+i*.25+.2);
+  }
+ }catch(e){console.warn('Aviso sonoro indisponível',e)}
+}
+function iniciarAlarmeRelogio(half,marco){
+ const chave=`${roundId}:${half}:${marco}`;
+ if(alertaRelogio?.chave===chave)return;
+ silenciarAlarmeRelogio();
+ tocarAvisoRelogio();
+ alertaRelogio={chave,intervalo:setInterval(tocarAvisoRelogio,2400)};
+ const el=document.getElementById('relogio-jogo');if(el)el.style.color='#ffb02e';
+}
+async function pausarCronometroNoMarco(half,marco){
+ const chave=`${roundId}:${half}:${marco}`;
+ if(pausandoAutomaticamente||ultimaPausaAutomatica===chave)return;
+ pausandoAutomaticamente=true;ultimaPausaAutomatica=chave;
+ try{
+  const {data:row,error}=await supa.from('rodadas').select('dados,versao').eq('data_rodada',roundId).single();
+  if(error)throw error;
+  const next=structuredClone(row.dados),c=next.matchClock;
+  if(!c?.running||Number(c.half)!==half||segundosCronometro(c)<marco)return;
+  c.elapsedMs=marco;c.running=false;c.startedAt=null;
+  const {error:err}=await salvarRodadaAutorizada({p_data:roundId,p_dados:next,p_versao_esperada:Number(row.versao)});
+  if(err)throw err;
+  db.rounds[roundId]=next;save();show();
+ }catch(e){
+  console.error('Pausa automática:',e);
+  ultimaPausaAutomatica='';
+ }finally{pausandoAutomaticamente=false}
+}
+
 async function controlarCronometro(acao){
  if(!mustMatchOperator()||atualizandoCronometro)return;
+ silenciarAlarmeRelogio();
  if(!supa)return alert('Supabase indisponível.');
  const local=current();if(!local.teams)return alert('Sorteie os times primeiro.');
  atualizandoCronometro=true;
@@ -736,7 +788,7 @@ async function controlarCronometro(acao){
    if(ms>=2700000)throw Error('Tempo encerrado.');
    c.elapsedMs=ms;c.running=true;c.startedAt=new Date().toISOString();
   }else if(acao==='pause'){
-   c.elapsedMs=ms;c.running=false;c.startedAt=null;
+   c.elapsedMs=Math.min(ms,proximoMarco(c));c.running=false;c.startedAt=null;
   }else if(acao==='next'){
    if(c.half!==1)throw Error('O segundo tempo já foi iniciado.');
    if(!confirm('Encerrar o primeiro tempo e preparar o cronômetro do segundo tempo em 00:00?'))return;
@@ -755,12 +807,21 @@ function clockPanel(r){
  const display=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
  const editable=isMatchOperator()&&!locked()&&!r.finalizedAt;
  const ended=sec>=2700;
- return `<div class="panel" style="text-align:center"><h2>⏱ Cronômetro — ${c.half||1}º tempo</h2><div id="relogio-jogo" style="font-size:56px;font-weight:800;font-variant-numeric:tabular-nums">${display}</div><p class="note">${ended?'45 minutos atingidos':c.running?'Cronômetro em andamento':'Cronômetro pausado'} · gols registrados pelo tempo de jogo</p><div class="row" style="justify-content:center"><button class="primary" onclick="controlarCronometro('start')" ${!editable||c.running||ended?'disabled':''}>▶ Iniciar</button><button onclick="controlarCronometro('pause')" ${!editable||!c.running?'disabled':''}>⏸ Pausar</button>${c.half===1?`<button onclick="controlarCronometro('next')" ${!editable?'disabled':''}>⏭ Encerrar 1º tempo / Preparar 2º</button>`:''}</div></div>`;
+ return `<div class="panel" style="text-align:center"><h2>⏱ Cronômetro — ${c.half||1}º tempo</h2><div id="relogio-jogo" onclick="silenciarAlarmeRelogio()" title="Clique para silenciar o aviso sonoro" style="font-size:56px;font-weight:800;font-variant-numeric:tabular-nums;cursor:pointer">${display}</div><p class="note">${ended?'45 minutos atingidos':c.running?'Cronômetro em andamento':'Cronômetro pausado'} · aviso sonoro aos ${Number(c.half)===2?'15, 30 e 45':'30 e 45'} minutos · clique no relógio para silenciar</p><div class="row" style="justify-content:center"><button class="primary" onclick="controlarCronometro('start')" ${!editable||c.running||ended?'disabled':''}>▶ Iniciar</button><button onclick="controlarCronometro('pause')" ${!editable||!c.running?'disabled':''}>⏸ Pausar</button>${c.half===1?`<button onclick="controlarCronometro('next')" ${!editable?'disabled':''}>⏭ Encerrar 1º tempo / Preparar 2º</button>`:''}</div></div>`;
 }
 setInterval(()=>{
  if(tab!=='ao-vivo')return;
  const el=document.getElementById('relogio-jogo');if(!el)return;
- const sec=Math.floor(segundosCronometro(current().matchClock)/1000);
+ const c=current().matchClock;
+ const sec=Math.floor(segundosCronometro(c)/1000);
+ if(c?.running){
+  const marco=proximoMarco(c);
+  if(segundosCronometro(c)>=marco){
+   iniciarAlarmeRelogio(Number(c.half)||1,marco);
+   if(isMatchOperator()&&!locked()&&supa)pausarCronometroNoMarco(Number(c.half)||1,marco);
+  }
+ }
+ if(alertaRelogio)el.style.color='#ffb02e';
  el.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
 },250);
 function goalEvents(){let r=current();if(!Array.isArray(r.goalEvents))r.goalEvents=[];return r.goalEvents}
